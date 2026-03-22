@@ -1,5 +1,5 @@
 {
-  "name": "MasterOfTasks",
+  "name": "master-of-tasks",
   "version": "1.0.0",
   "description": "Orchestrates plan implementation with automated code review loops",
   "author": { "name": "saropatzi" },

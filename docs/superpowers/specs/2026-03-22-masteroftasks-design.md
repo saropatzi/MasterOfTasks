@@ -131,11 +131,11 @@ Takes a comma-separated list of plan file paths. Implements each task sequential
    │         (a) retry review (b) manually fix (c) skip plan (d) abort
    │
    ├── Mark plan completed in status.json
-   └── Move plan file to <plan_dir>/completed/ (create dir if needed)
+   ├── Move plan file to <plan_dir>/completed/
+   └── Move report file to <plan_dir>/completed/ (create dir if needed)
 
 3. COMPLETION
-   ├── Generate summary report: master-of-tasks-reports/YYYY-MM-DD-HHmm-summary.md
-   └── Output: "All plans completed. Summary at <path>"
+   └── Output: "All plans completed. Reports at <plan_dir>/completed/"
 ```
 
 ### `/mot-status` — Show Current Status
@@ -318,9 +318,19 @@ Each task entry includes:
 - `iterations` — how many times the review fix loop ran
 - `commit` — implementation commit hash (fix commits tracked by ClaudeReviewers)
 
-### Summary Report (post-completion)
+### Report Files
 
-Generated at `master-of-tasks-reports/YYYY-MM-DD-HHmm-summary.md` when all plans complete.
+Each plan has a corresponding report file, named by appending `-reports` before the extension:
+- Plan: `plans/2026-03-22-auth.md`
+- Report: `plans/2026-03-22-auth-reports.md`
+
+The report file is created when the first task completes and updated after each task. It accumulates metrics throughout execution.
+
+When a plan is completed, both files move to `plans/completed/`:
+- `plans/completed/2026-03-22-auth.md`
+- `plans/completed/2026-03-22-auth-reports.md`
+
+### Report Format
 
 ```markdown
 # MasterOfTasks Summary — 2026-03-22 16:30

@@ -130,7 +130,8 @@ Takes a comma-separated list of plan file paths. Implements each task sequential
    │    └── Exit 1 → STOP. Show findings to user. Same options:
    │         (a) retry review (b) manually fix (c) skip plan (d) abort
    │
-   └── Mark plan completed in status.json
+   ├── Mark plan completed in status.json
+   └── Move plan file to <plan_dir>/completed/ (create dir if needed)
 
 3. COMPLETION
    ├── Generate summary report: master-of-tasks-reports/YYYY-MM-DD-HHmm-summary.md

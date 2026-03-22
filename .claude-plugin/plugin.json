@@ -1,0 +1,7 @@
+{
+  "name": "MasterOfTasks",
+  "version": "1.0.0",
+  "description": "Orchestrates plan implementation with automated code review loops",
+  "author": { "name": "saropatzi" },
+  "license": "MIT"
+}

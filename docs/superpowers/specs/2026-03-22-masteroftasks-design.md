@@ -50,6 +50,26 @@ claude plugin add git@github.com:saropatzi/MasterOfTasks.git
 claude plugin add /path/to/MasterOfTasks
 ```
 
+## Plan File Format
+
+MasterOfTasks expects plans following the ClaudePlanners format. Tasks are parsed from the "Implementation Steps" section (or equivalent) as markdown checkbox items:
+
+```markdown
+- [ ] Task 1: Create plugin scaffold [non-TDD]
+- [ ] Task 2: Add auth middleware [TDD]
+  - Files: src/middleware/auth.go, src/middleware/auth_test.go
+  - Verify: auth middleware rejects unauthenticated requests with 401
+```
+
+Parsing rules:
+- Tasks are `- [ ]` or `- [x]` checkbox items with "Task N:" prefix
+- TDD/non-TDD tag: `[TDD]` or `[non-TDD]` at end of task line
+- Files: optional indented line starting with "Files:"
+- Verification criteria: optional indented line starting with "Verify:"
+- Plan sections (Overview, Context, etc.) are identified by `##` headings
+
+If a plan has no parseable tasks (no checkbox items), error: "No tasks found in plan. Ensure the plan follows ClaudePlanners format with checkbox items."
+
 ## Commands
 
 ### `/mot <plan1>,<plan2>,...` — Execute Plans
@@ -63,7 +83,8 @@ Takes a comma-separated list of plan file paths. Implements each task sequential
 
 ```
 1. INIT
-   ├── Verify ClaudeReviewers is installed (test /review availability)
+   ├── Verify ClaudeReviewers: attempt to invoke /review --skip-review.
+   │    If it fails, error with install instructions.
    ├── Read mot.yml (if exists) → merge with defaults
    ├── Parse plan paths from comma-separated argument
    ├── Confirm order: "Plans received in this order:
@@ -85,12 +106,16 @@ Takes a comma-separated list of plan file paths. Implements each task sequential
    │    │
    │    ├── Launch implementer agent (subagent via Agent tool)
    │    │    - Pass all collected context
-   │    │    - Model from: .mot/implementer.md frontmatter > mot.yml > default (opus)
+   │    │    - Model from: mot/implementer.md frontmatter > mot.yml > default (opus)
    │    │
    │    ├── Review (light, post-task):
-   │    │    /review --agents <light_agents> --plan <plan_file>
+   │    │    /review --only <light_agents> --plan <plan_file> --max-iterations <max>
    │    │    ├── Exit 0 → task passed
-   │    │    └── Exit 1 → STOP. Show findings to user, ask how to proceed.
+   │    │    └── Exit 1 → STOP. Show findings to user. Options:
+   │    │         (a) retry review
+   │    │         (b) manually fix, then retry
+   │    │         (c) skip task and continue
+   │    │         (d) abort entire execution
    │    │
    │    ├── Update status.json:
    │    │    - task status: completed
@@ -102,7 +127,8 @@ Takes a comma-separated list of plan file paths. Implements each task sequential
    ├── Review (full, post-plan):
    │    /review --plan <plan_file>
    │    ├── Exit 0 → plan passed
-   │    └── Exit 1 → STOP. Show findings to user, ask how to proceed.
+   │    └── Exit 1 → STOP. Show findings to user. Same options:
+   │         (a) retry review (b) manually fix (c) skip plan (d) abort
    │
    └── Mark plan completed in status.json
 
@@ -116,9 +142,10 @@ Takes a comma-separated list of plan file paths. Implements each task sequential
 Shows the current state of plan execution without running anything.
 
 **Flow:**
-1. Read `master-of-tasks-reports/status.json`
-2. If not found: "No execution in progress."
-3. If found: show for each plan:
+1. Read `mot.yml` (if exists) to resolve `status_dir` (default: `master-of-tasks-reports/`)
+2. Read `<status_dir>/status.json`
+3. If not found: "No execution in progress."
+4. If found: show for each plan:
    - Status (pending / in_progress / completed)
    - Tasks completed / total
    - Last commit hash
@@ -144,6 +171,8 @@ Resumes execution from where it was interrupted.
 5. Confirm: "Resume from Task N of plan X?"
 6. Continue the `/mot` loop from the interrupted point
 
+**Resume granularity:** If a task has status `in_progress`, it is re-executed from the beginning (implementation + review). Partial work from the interrupted task may exist in the working tree — the implementer agent works on top of current state, it does not revert.
+
 ## Agents
 
 ### implementer
@@ -159,11 +188,11 @@ Resumes execution from where it was interrupted.
 - If TDD: write test → verify failure → implement → verify success → commit
 - If non-TDD: implement → test if applicable → commit
 - Commit messages: `feat: <task description>` or `fix:` for fixes
-- Stay within the scope of the assigned task — do not modify unrelated files
+- Stay within the scope of the assigned task: files listed in the task + files directly required to integrate the change (e.g., updating a router to wire a new endpoint). Do not modify files unrelated to the task's goal.
 
 **Model:** opus (default, configurable via mot.yml or override frontmatter)
 
-**Override:** `.mot/implementer.md` in project root replaces the built-in prompt. Frontmatter `model` field takes precedence over `mot.yml`.
+**Override:** `mot/implementer.md` in project root replaces the built-in prompt. Frontmatter `model` field takes precedence over `mot.yml`.
 
 **Model precedence:** override file frontmatter > `mot.yml` > default (opus)
 
@@ -174,7 +203,7 @@ MasterOfTasks delegates all review work to ClaudeReviewers. No review logic is d
 ### Light Review (post-task)
 
 ```
-/review --agents <review_agents_light> --plan <plan_file>
+/review --only <review_agents_light> --plan <plan_file> --max-iterations <review_max_iterations>
 ```
 
 Default agents: `quality,implementation`. Configurable in `mot.yml`.
@@ -184,7 +213,7 @@ ClaudeReviewers runs its full flow: dispatch agents, collect findings, verify, f
 ### Full Review (post-plan)
 
 ```
-/review --plan <plan_file>
+/review --plan <plan_file> --max-iterations <review_max_iterations>
 ```
 
 All default agents (quality, implementation, testing, simplification, documentation). Configurable in `mot.yml`.
@@ -218,7 +247,7 @@ agents:
 
 ### Agent Override
 
-`.mot/implementer.md` in project root replaces the built-in implementer prompt. Only the prompt body is replaced. `mot.yml` still controls model unless the override file has a frontmatter `model` field.
+`mot/implementer.md` in project root replaces the built-in implementer prompt. Only the prompt body is replaced. `mot.yml` still controls model unless the override file has a frontmatter `model` field.
 
 **Model precedence:** override file frontmatter > `mot.yml` > default (opus)
 
@@ -229,6 +258,8 @@ agents:
 ```json
 {
   "started": "2026-03-22T14:30:00",
+  "last_updated": "2026-03-22T14:42:00",
+  "completed": null,
   "plans": [
     {
       "path": "plans/2026-03-22-auth.md",
@@ -242,6 +273,7 @@ agents:
           "commit": "abc1234",
           "review": "pass",
           "findings": 0,
+          "fixed": 0,
           "iterations": 0,
           "duration_seconds": 120,
           "timestamp": "2026-03-22T14:35:00"
@@ -254,6 +286,7 @@ agents:
           "commit": "def5678",
           "review": "pass",
           "findings": 3,
+          "fixed": 3,
           "iterations": 2,
           "duration_seconds": 480,
           "timestamp": "2026-03-22T14:42:00"
@@ -280,6 +313,7 @@ The `status_dir` directory is created automatically if it doesn't exist.
 Each task entry includes:
 - `duration_seconds` — implementation + review time
 - `findings` — number of review findings
+- `fixed` — number of findings fixed by ClaudeReviewers
 - `iterations` — how many times the review fix loop ran
 - `commit` — implementation commit hash (fix commits tracked by ClaudeReviewers)
 
@@ -336,6 +370,16 @@ The summary report aggregates metrics from status.json into a human-readable for
 
 **User cancellation:** Status.json retains progress. User can resume later with `/mot-resume`.
 
+**Malformed plan file:** If the plan exists but has no parseable tasks (no checkbox items), error: "No tasks found in `<path>`. Ensure the plan follows ClaudePlanners format with checkbox items."
+
+**Invalid mot.yml:** If mot.yml exists but is not parseable, warn and use all defaults: "Warning: mot.yml could not be parsed. Using defaults."
+
+**No-op implementation:** If the implementer agent completes but produces no commit (nothing changed), mark the task as completed with `commit: null` and log a warning: "Task N produced no changes."
+
+**Dirty working tree:** At startup, check `git status`. If there are uncommitted changes, warn: "Working tree has uncommitted changes. Commit or stash before proceeding?" Wait for user confirmation.
+
+**Argument parsing:** Plan paths are comma-separated with optional whitespace trimming. Paths containing commas are not supported.
+
 ## Agent Invocation
 
 All agents are invoked via the Claude Code `Agent` tool:
@@ -343,7 +387,7 @@ All agents are invoked via the Claude Code `Agent` tool:
 - **Implementer:** dispatched with task context + plan context + previous task results. Model resolved from override frontmatter > mot.yml > default.
 - **Review:** invoked by calling `/review` via the Skill tool (delegates to ClaudeReviewers plugin).
 
-**Configuration parsing:** `mot.yml` is read via the Read tool and parsed by the LLM in-context.
+**Configuration parsing:** `mot.yml` is read via the Read tool and parsed by the LLM in-context. No external YAML parser is needed. Keep `mot.yml` simple — complex or deeply nested YAML may not parse reliably.
 
 ## Future Work
 
@@ -351,7 +395,7 @@ All agents are invoked via the Claude Code `Agent` tool:
 Independent tasks (touching different files) executed in parallel, each in its own git worktree. Merge back to main branch on completion. Requires: dependency analysis between tasks, worktree management, concurrent status.json updates, coordinated review.
 
 ### Specialized Implementer Agents
-Multiple implementer agents selectable per task: backend, frontend, infrastructure, full-stack. Task in the plan specifies which agent to use. Override via `.mot/implementer-<type>.md`.
+Multiple implementer agents selectable per task: backend, frontend, infrastructure, full-stack. Task in the plan specifies which agent to use. Override via `mot/implementer-<type>.md`.
 
 ### ClaudePlanners Integration
 `/mot --create` flag that first invokes `/plan` to create a plan, then immediately executes it. Single command for the full cycle.

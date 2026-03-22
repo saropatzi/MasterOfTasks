@@ -143,8 +143,8 @@ Takes a comma-separated list of plan file paths. Implements each task sequential
 Shows the current state of plan execution without running anything.
 
 **Flow:**
-1. Read `mot.yml` (if exists) to resolve `status_dir` (default: `master-of-tasks-reports/`)
-2. Read `<status_dir>/status.json`
+1. Read `mot.yml` (if exists) to resolve `plan_dir` (default: `plans/`)
+2. Read `<plan_dir>/status.json`
 3. If not found: "No execution in progress."
 4. If found: show for each plan:
    - Status (pending / in_progress / completed)
@@ -234,7 +234,6 @@ Placed in project root. Every field is optional.
 
 ```yaml
 plan_dir: plans/                                    # default: plans/
-status_dir: master-of-tasks-reports                 # default: master-of-tasks-reports/
 review_agents_light: quality,implementation          # default: quality,implementation
 review_agents_full: all                             # default: all
 review_max_iterations: 3                            # default: 3
@@ -254,7 +253,7 @@ agents:
 
 ## Status File
 
-**Path:** `master-of-tasks-reports/status.json` (configurable via `status_dir` in `mot.yml`)
+**Path:** `<plan_dir>/status.json` (e.g., `plans/status.json`). Lives alongside the plan files.
 
 ```json
 {
@@ -305,7 +304,7 @@ agents:
 
 Created at the start of `/mot`. Updated after each task completion. Read by `/mot-status` and `/mot-resume`.
 
-The `status_dir` directory is created automatically if it doesn't exist.
+The `plan_dir` directory is created automatically if it doesn't exist. `status.json` persists after completion — it serves as a historical record alongside the `-reports.md` files.
 
 ## Metrics
 
@@ -371,13 +370,13 @@ The summary report aggregates metrics from status.json into a human-readable for
 
 **Plan file not found:** Error: "Plan not found: `<path>`. Check the file path."
 
-**Status dir doesn't exist:** Create automatically.
+**Plan dir doesn't exist:** Create automatically.
 
 **Review fails (exit 1):** Stop execution. Show findings to user. Ask how to proceed. Do not continue to next task.
 
 **Implementer agent fails:** Stop execution. Show error to user. Ask how to proceed.
 
-**Existing status.json for same plans:** When starting `/mot`, if status.json exists with matching plans, suggest: "Previous execution found. Use /mot-resume to continue, or delete `<status_dir>/status.json` to start fresh."
+**Existing status.json for same plans:** When starting `/mot`, if status.json exists with matching plans, suggest: "Previous execution found. Use /mot-resume to continue, or delete `<plan_dir>/status.json` to start fresh."
 
 **User cancellation:** Status.json retains progress. User can resume later with `/mot-resume`.
 

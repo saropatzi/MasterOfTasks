@@ -408,7 +408,7 @@ Independent tasks (touching different files) executed in parallel, each in its o
 Multiple implementer agents selectable per task: backend, frontend, infrastructure, full-stack. Task in the plan specifies which agent to use. Override via `mot/implementer-<type>.md`.
 
 ### ClaudePlanners Integration
-`/mot --create` flag that first invokes `/plan` to create a plan, then immediately executes it. Single command for the full cycle.
+`/mot --create` flag that first invokes `/mplan` to create a plan, then immediately executes it. Single command for the full cycle.
 
 ### Enhanced Metrics
 Token consumption tracking per task, cost estimation, historical trends across executions, performance comparison between plans.
